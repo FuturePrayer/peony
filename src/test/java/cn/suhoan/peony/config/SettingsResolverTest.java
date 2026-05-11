@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class SettingsResolverTest {
     @Test
     void usesConfigJavaHomeBeforeEnvironmentVariable() {
-        RunRequest request = new RunRequest(false, false, "github", "owner/repo", null, null, null, null, false, ProxySettings.empty(), null, null, List.of());
+        RunRequest request = new RunRequest(false, false, false, "github", "owner/repo", null, null, null, null, false, ProxySettings.empty(), null, null, List.of());
         AppConfig config = new AppConfig(Path.of("D:/develop/jdk-21"), Path.of("D:/workspace-parent"), null, null, ProxySettings.empty());
 
         ExecutionSettings settings = SettingsResolver.resolve(request, config, Map.of(
@@ -28,6 +28,7 @@ class SettingsResolverTest {
     @Test
     void mergesProxyAndTokenWithCliPrecedence() {
         RunRequest request = new RunRequest(
+                false,
                 false,
                 false,
                 "github",

@@ -18,6 +18,7 @@ import java.util.Optional;
 
 public final class HttpExecutor implements AutoCloseable {
     private static final int MAX_REDIRECTS = 10;
+    private static final int MAX_ATTEMPTS_PER_MODE = 3;
     private static final int REQUEST_TIMEOUT_MILLIS = Math.toIntExact(Duration.ofSeconds(30).toMillis());
 
     private final ProxySettings proxySettings;
@@ -45,13 +46,30 @@ public final class HttpExecutor implements AutoCloseable {
     }
 
     private HttpResponse send(URI sourceUri, Map<String, String> headers) throws IOException {
+        IOException proxiedFailure = null;
+        if (proxySettings.hasProxy() || proxySettings.hasPrefixProxy()) {
+            try {
+                return sendWithPolicy(sourceUri, headers, proxySettings);
+            } catch (IOException e) {
+                proxiedFailure = e;
+            }
+        }
+
+        try {
+            return sendWithPolicy(sourceUri, headers, ProxySettings.empty());
+        } catch (IOException directFailure) {
+            if (proxiedFailure != null) {
+                directFailure.addSuppressed(proxiedFailure);
+            }
+            throw directFailure;
+        }
+    }
+
+    private HttpResponse sendWithPolicy(URI sourceUri, Map<String, String> headers, ProxySettings activeProxySettings) throws IOException {
         URI currentUri = sourceUri;
         Map<String, String> currentHeaders = new LinkedHashMap<>(headers);
         for (int redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
-            URI effectiveUri = applyPrefixProxy(currentUri);
-            HttpRequest request = buildRequest(effectiveUri, currentHeaders);
-
-            HttpResponse response = request.execute();
+            HttpResponse response = executeWithRetry(currentUri, currentHeaders, activeProxySettings);
             if (!isRedirect(response.getStatus())) {
                 ensureSuccess(response.getStatus(), currentUri);
                 return response;
@@ -71,11 +89,30 @@ public final class HttpExecutor implements AutoCloseable {
         throw new IOException("too many redirects while requesting " + sourceUri);
     }
 
-    private HttpRequest buildRequest(URI effectiveUri, Map<String, String> headers) {
+    private HttpResponse executeWithRetry(URI sourceUri, Map<String, String> headers, ProxySettings activeProxySettings) throws IOException {
+        IOException lastFailure = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS_PER_MODE; attempt++) {
+            URI effectiveUri = applyPrefixProxy(sourceUri, activeProxySettings);
+            HttpRequest request = buildRequest(effectiveUri, headers, activeProxySettings);
+            try {
+                HttpResponse response = request.execute();
+                if (isSuccessfulOrRedirect(response.getStatus())) {
+                    return response;
+                }
+                response.close();
+                lastFailure = new IOException("request failed with status " + response.getStatus() + " for " + sourceUri);
+            } catch (Exception e) {
+                lastFailure = e instanceof IOException ioException ? ioException : new IOException(e.getMessage(), e);
+            }
+        }
+        throw lastFailure == null ? new IOException("request failed for " + sourceUri) : lastFailure;
+    }
+
+    private HttpRequest buildRequest(URI effectiveUri, Map<String, String> headers, ProxySettings activeProxySettings) {
         HttpRequest request = HttpRequest.get(effectiveUri.toString())
                 .timeout(REQUEST_TIMEOUT_MILLIS)
                 .setFollowRedirects(false);
-        ProxyDefinition proxy = parseProxy(proxySettings.proxyUrl());
+        ProxyDefinition proxy = parseProxy(activeProxySettings.proxyUrl());
         if (proxy != null) {
             request.setProxy(new Proxy(proxy.type().javaNetType(), InetSocketAddress.createUnresolved(proxy.host(), proxy.port())));
         }
@@ -83,11 +120,11 @@ public final class HttpExecutor implements AutoCloseable {
         return request;
     }
 
-    private URI applyPrefixProxy(URI sourceUri) {
-        if (!proxySettings.hasPrefixProxy()) {
+    private URI applyPrefixProxy(URI sourceUri, ProxySettings activeProxySettings) {
+        if (!activeProxySettings.hasPrefixProxy()) {
             return sourceUri;
         }
-        return URI.create(proxySettings.prefixProxy() + sourceUri);
+        return URI.create(activeProxySettings.prefixProxy() + sourceUri);
     }
 
     private void ensureSuccess(int statusCode, URI sourceUri) throws IOException {
@@ -99,6 +136,10 @@ public final class HttpExecutor implements AutoCloseable {
 
     private static boolean isRedirect(int statusCode) {
         return statusCode == 301 || statusCode == 302 || statusCode == 303 || statusCode == 307 || statusCode == 308;
+    }
+
+    private static boolean isSuccessfulOrRedirect(int statusCode) {
+        return (statusCode >= 200 && statusCode < 300) || isRedirect(statusCode);
     }
 
     private boolean sameAuthority(URI left, URI right) {

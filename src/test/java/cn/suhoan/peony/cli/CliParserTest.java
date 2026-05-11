@@ -18,6 +18,7 @@ class CliParserTest {
                 "--java-home", "D:/jdk",
                 "--workspace", "D:/work",
                 "--download-only",
+                "--stable-only",
                 "--keep-workspace",
                 "--proxy", "http://127.0.0.1:8080",
                 "--prefix-proxy", "https://gp.example/",
@@ -33,6 +34,7 @@ class CliParserTest {
         assertEquals(Path.of("D:/jdk"), request.javaHomeOverride());
         assertEquals(Path.of("D:/work"), request.workspaceParentOverride());
         assertTrue(request.downloadOnly());
+        assertTrue(request.stableOnly());
         assertTrue(request.keepWorkspace());
         assertEquals("http://127.0.0.1:8080", request.proxyOverride().proxyUrl());
         assertEquals("https://gp.example/", request.proxyOverride().prefixProxy());

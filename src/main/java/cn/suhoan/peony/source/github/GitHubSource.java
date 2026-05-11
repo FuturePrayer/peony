@@ -15,10 +15,10 @@ import java.util.stream.Collectors;
 public final class GitHubSource implements ArtifactSource {
     @Override
     public ResolvedArtifact resolve(RunRequest request, ExecutionSettings settings, HttpExecutor httpExecutor) throws Exception {
-        String apiResponse = httpExecutor.getText(latestReleaseUri(request.repository()), releaseHeaders(settings.githubToken()));
-        List<GitHubReleaseAsset> jarAssets = GitHubReleaseParser.parseAssets(apiResponse).stream()
-                .filter(GitHubReleaseAsset::isJar)
-                .toList();
+        String apiResponse = httpExecutor.getText(releasesUri(request.repository()), releaseHeaders(settings.githubToken()));
+        List<GitHubRelease> releases = GitHubReleaseParser.parseReleases(apiResponse);
+        GitHubRelease release = selectRelease(releases, request.stableOnly());
+        List<GitHubReleaseAsset> jarAssets = release.assets().stream().filter(GitHubReleaseAsset::isJar).toList();
 
         GitHubReleaseAsset asset = selectAsset(jarAssets, request.assetName());
         Map<String, String> headers = new LinkedHashMap<>();
@@ -29,9 +29,19 @@ public final class GitHubSource implements ArtifactSource {
         return new ResolvedArtifact(asset.name(), asset.downloadUri(), headers);
     }
 
+    static GitHubRelease selectRelease(List<GitHubRelease> releases, boolean stableOnly) {
+        return releases.stream()
+                .filter(release -> !stableOnly || !release.prerelease())
+                .filter(release -> release.assets().stream().anyMatch(GitHubReleaseAsset::isJar))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(stableOnly
+                        ? "no stable release with .jar assets was found"
+                        : "no release with .jar assets was found"));
+    }
+
     static GitHubReleaseAsset selectAsset(List<GitHubReleaseAsset> jarAssets, String requestedAssetName) {
         if (jarAssets.isEmpty()) {
-            throw new IllegalArgumentException("latest release does not contain any .jar assets");
+            throw new IllegalArgumentException("selected release does not contain any .jar assets");
         }
         if (requestedAssetName != null) {
             return jarAssets.stream()
@@ -46,8 +56,8 @@ public final class GitHubSource implements ArtifactSource {
         return jarAssets.getFirst();
     }
 
-    private static URI latestReleaseUri(String repository) {
-        return URI.create("https://api.github.com/repos/" + repository + "/releases/latest");
+    private static URI releasesUri(String repository) {
+        return URI.create("https://api.github.com/repos/" + repository + "/releases?per_page=20");
     }
 
     private static Map<String, String> releaseHeaders(String githubToken) {

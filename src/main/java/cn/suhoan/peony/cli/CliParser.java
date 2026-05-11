@@ -35,6 +35,7 @@ public final class CliParser {
         Path workspaceParent = null;
         boolean keepWorkspace = false;
         boolean downloadOnly = false;
+        boolean stableOnly = false;
         String proxy = null;
         String prefixProxy = null;
         String githubToken = null;
@@ -77,6 +78,10 @@ public final class CliParser {
                     downloadOnly = true;
                     index++;
                 }
+                case "--stable-only" -> {
+                    stableOnly = true;
+                    index++;
+                }
                 case "--proxy" -> {
                     proxy = requireValue(tokens, ++index, token);
                     index++;
@@ -104,6 +109,7 @@ public final class CliParser {
         return new RunRequest(
                 false,
                 downloadOnly,
+                stableOnly,
                 sourceType,
                 repository,
                 assetName,
@@ -123,6 +129,9 @@ public final class CliParser {
                 Usage:
                   peony run github <owner/repo> [options] -- [program args]
 
+                By default, GitHub release lookup includes the newest pre-release.
+                Use --stable-only to restrict lookup to stable releases only.
+
                 Options:
                   --asset <name>              Select a specific .jar asset when multiple jars exist
                   --config <path>             Load configuration from properties file
@@ -130,6 +139,7 @@ public final class CliParser {
                   --workspace <path>          Parent directory used to create a temporary workspace
                   --keep-workspace            Keep the temporary workspace after exit
                   --download-only             Only download the jar and keep the workspace
+                  --stable-only               Only consider stable releases and ignore pre-releases
                   --proxy <url>               Proxy URL, supports http://, https:// and socks5://
                   --prefix-proxy <url>        Prefix proxy applied to every requested URL
                   --github-token <token>      GitHub token for private repositories

@@ -53,6 +53,10 @@ peony run github owner/repo --proxy socks5://127.0.0.1:1080 --prefix-proxy https
 peony run github owner/repo --asset app.jar --download-only
 ```
 
+```bash
+peony run github owner/repo --stable-only --asset app.jar
+```
+
 ## CLI 选项
 
 | 选项 | 说明 |
@@ -63,6 +67,7 @@ peony run github owner/repo --asset app.jar --download-only
 | `--workspace <path>` | 指定工作区父目录；程序会在其下创建独立临时子目录 |
 | `--keep-workspace` | 运行结束后保留工作区 |
 | `--download-only` | 只下载不运行，并保留工作区；程序会输出下载后的 jar 绝对路径 |
+| `--stable-only` | 只查找稳定版 release，忽略 pre-release；默认会把 pre-release 也纳入查找范围 |
 | `--proxy <url>` | 指定代理，支持 `http://`、`https://`、`socks5://` |
 | `--prefix-proxy <url>` | 指定前缀代理，最终访问 URL 为 `<prefix><real-url>` |
 | `--github-token <token>` | 直接指定 GitHub token |
@@ -142,6 +147,13 @@ proxy.prefix=https://gp-proxy.com/
 - 指定 `--keep-workspace` 后保留该目录以便排查问题
 
 ## 代理说明
+
+默认情况下，如果配置了普通代理或前缀代理：
+
+- 程序会优先使用这些代理发起请求
+- 若连续重试 3 次仍无法得到预期结果，则视为代理不可用
+- 不可用的判断包括连接超时、请求异常、4xx、5xx 响应等
+- 之后会自动回退为直连再重试
 
 ### 普通代理
 
