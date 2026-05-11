@@ -249,11 +249,10 @@ target/peony.exe
 
 工作流行为：
 
-1. 运行测试
-2. 构建 fat jar
-3. 构建 GraalVM native 可执行文件
-4. 自动创建或更新 GitHub Release
-5. 上传 jar、Linux native 和 Windows native 二进制
+1. 构建 fat jar
+2. 构建 GraalVM native 可执行文件
+3. 自动创建或更新 GitHub Release
+4. 上传 jar、Linux native 和 Windows native 二进制
 
 当前工作流运行在 `ubuntu-latest`，因此会发布：
 
