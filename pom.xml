@@ -6,7 +6,7 @@
 
     <groupId>cn.suhoan</groupId>
     <artifactId>peony</artifactId>
-    <version>1.0-beta2</version>
+    <version>1.0-beta3</version>
 
     <name>peony</name>
     <description>Run latest release jars from remote sources</description>
@@ -113,6 +113,9 @@
                         <configuration>
                             <imageName>peony</imageName>
                             <mainClass>${main.class}</mainClass>
+                            <metadataRepository>
+                                <enabled>false</enabled>
+                            </metadataRepository>
                             <buildArgs>
                                 <buildArg>--no-fallback</buildArg>
                             </buildArgs>
