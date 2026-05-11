@@ -6,7 +6,7 @@
 
     <groupId>cn.suhoan</groupId>
     <artifactId>peony</artifactId>
-    <version>1.0-beta3</version>
+    <version>1.0-beta4</version>
 
     <name>peony</name>
     <description>Run latest release jars from remote sources</description>
@@ -118,6 +118,7 @@
                             </metadataRepository>
                             <buildArgs>
                                 <buildArg>--no-fallback</buildArg>
+                                <buildArg>--enable-url-protocols=http,https</buildArg>
                             </buildArgs>
                         </configuration>
                     </plugin>

@@ -237,6 +237,7 @@ target/peony.exe
 - 普通 `mvn test` 或 `mvn package` 不会加载 native 插件
 - 只有显式指定 `-Pnative native:compile` 时才会触发 native 构建
 - 当前配置使用 `--no-fallback`
+- 当前 native 构建已显式启用 `http` 和 `https` URL 协议，避免运行时访问远程地址时报协议未启用
 - Windows 本地构建若缺少 `vcvarsall.bat`，说明未安装 Visual Studio C++ 原生工具链
 - 当前 native profile 已禁用 GraalVM reachability metadata repository，以避免不同 runner 上的 GraalVM/metadata schema 兼容问题
 
