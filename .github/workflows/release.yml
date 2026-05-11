@@ -1,0 +1,174 @@
+name: release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Validate tag matches pom version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME}"
+          POM_VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n 1 | tr -d '\r')"
+          if [[ "$TAG_NAME" != "$POM_VERSION" ]]; then
+            echo "Tag '$TAG_NAME' does not match pom version '$POM_VERSION'"
+            exit 1
+          fi
+          echo "tag=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$POM_VERSION" >> "$GITHUB_OUTPUT"
+          lower_version="$(printf '%s' "$POM_VERSION" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$lower_version" =~ (snapshot|alpha|beta|rc|milestone|preview) ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure tag commit is on main or master
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main master --depth=1 || true
+          TAG_COMMIT="$(git rev-list -n 1 "$GITHUB_REF_NAME")"
+          if git branch -r --contains "$TAG_COMMIT" | grep -Eq 'origin/(main|master)$'; then
+            exit 0
+          fi
+          echo "Tag commit is not reachable from origin/main or origin/master"
+          exit 1
+
+  jar:
+    needs: meta
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run tests
+        run: mvn -B test
+
+      - name: Build fat jar
+        run: mvn -B package -DskipTests
+
+      - name: Upload jar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: peony-jar
+          path: target/peony-${{ needs.meta.outputs.version }}.jar
+
+  native:
+    needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary_path: target/peony
+            artifact_name: peony-linux-x86_64
+            upload_name: peony-native-linux
+          - os: windows-latest
+            binary_path: target/peony.exe
+            artifact_name: peony-windows-x86_64.exe
+            upload_name: peony-native-windows
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm-community
+          java-version: '21'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image-job-reports: 'true'
+          cache: maven
+
+      - name: Build native executable
+        run: mvn -B -Pnative native:compile
+
+      - name: Prepare native artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "${{ matrix.binary_path }}" "dist/${{ matrix.artifact_name }}"
+          if [[ "${{ matrix.os }}" != "windows-latest" ]]; then
+            chmod +x "dist/${{ matrix.artifact_name }}"
+          fi
+
+      - name: Upload native artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.upload_name }}
+          path: dist/${{ matrix.artifact_name }}
+
+  release:
+    needs:
+      - meta
+      - jar
+      - native
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download jar artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: peony-jar
+          path: dist
+
+      - name: Download Linux native artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: peony-native-linux
+          path: dist
+
+      - name: Download Windows native artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: peony-native-windows
+          path: dist
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.meta.outputs.tag }}
+          name: ${{ needs.meta.outputs.version }}
+          prerelease: ${{ needs.meta.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            dist/*
