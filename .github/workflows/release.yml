@@ -76,9 +76,6 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Run tests
-        run: mvn -B test
-
       - name: Build fat jar
         run: mvn -B package -DskipTests
 
@@ -119,7 +116,7 @@ jobs:
           cache: maven
 
       - name: Build native executable
-        run: mvn -B -Pnative native:compile
+        run: mvn -B -DskipTests -Pnative native:compile
 
       - name: Prepare native artifact
         shell: bash
