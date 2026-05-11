@@ -1,10 +1,13 @@
 package cn.suhoan.peony.config;
 
-import cn.suhoan.peony.cli.RunRequest;
+import cn.suhoan.peony.cli.Command;
+import cn.suhoan.peony.cli.PeonyRequest;
 import cn.suhoan.peony.net.ProxySettings;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public final class SettingsResolver {
@@ -13,11 +16,11 @@ public final class SettingsResolver {
     private SettingsResolver() {
     }
 
-    public static ExecutionSettings resolve(RunRequest request, AppConfig config) {
+    public static ExecutionSettings resolve(PeonyRequest request, AppConfig config) {
         return resolve(request, config, System.getenv());
     }
 
-    static ExecutionSettings resolve(RunRequest request, AppConfig config, Map<String, String> env) {
+    static ExecutionSettings resolve(PeonyRequest request, AppConfig config, Map<String, String> env) {
         Path javaHome = firstNonNull(
                 request.javaHomeOverride(),
                 config.javaHome(),
@@ -25,11 +28,14 @@ public final class SettingsResolver {
                 getPath(env, "JAVA_HOME")
         );
         if (javaHome == null) {
-            throw new IllegalArgumentException("java home is not configured; use --java-home, java.home, PEONY_JAVA_HOME or JAVA_HOME");
-        }
-        javaHome = javaHome.toAbsolutePath().normalize();
-        if (Files.notExists(javaHome)) {
-            throw new IllegalArgumentException("java home does not exist: " + javaHome);
+            if (request.command() == Command.RUN) {
+                throw new IllegalArgumentException("java home is not configured; use --java-home, java.home, PEONY_JAVA_HOME or JAVA_HOME");
+            }
+        } else {
+            javaHome = javaHome.toAbsolutePath().normalize();
+            if (Files.notExists(javaHome)) {
+                throw new IllegalArgumentException("java home does not exist: " + javaHome);
+            }
         }
 
         Path workspaceParent = firstNonNull(
@@ -56,7 +62,51 @@ public final class SettingsResolver {
                 getEnv(env, config.githubTokenEnv())
         );
 
-        return new ExecutionSettings(javaHome, workspaceParent, proxySettings, githubToken);
+        List<String> jvmArgs = resolveJvmArgs(request, config, env);
+
+        return new ExecutionSettings(javaHome, workspaceParent, proxySettings, githubToken, jvmArgs);
+    }
+
+    private static List<String> resolveJvmArgs(PeonyRequest request, AppConfig config, Map<String, String> env) {
+        String rawArgs = firstNonBlank(
+                request.jvmArgsOverride(),
+                firstEnvNonBlank(env, "PEONY_JVM_ARGS"),
+                config.jvmArgs()
+        );
+        if (rawArgs == null) {
+            return List.of();
+        }
+        return splitArgsPreservingQuotedSpaces(rawArgs);
+    }
+
+    static List<String> splitArgsPreservingQuotedSpaces(String input) {
+        List<String> args = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inDoubleQuotes = false;
+        boolean inSingleQuotes = false;
+
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+
+            if (c == '"' && !inSingleQuotes) {
+                inDoubleQuotes = !inDoubleQuotes;
+            } else if (c == '\'' && !inDoubleQuotes) {
+                inSingleQuotes = !inSingleQuotes;
+            } else if (Character.isWhitespace(c) && !inDoubleQuotes && !inSingleQuotes) {
+                if (!current.isEmpty()) {
+                    args.add(current.toString());
+                    current.setLength(0);
+                }
+            } else {
+                current.append(c);
+            }
+        }
+
+        if (!current.isEmpty()) {
+            args.add(current.toString());
+        }
+
+        return args;
     }
 
     private static String getEnv(Map<String, String> env, String name) {

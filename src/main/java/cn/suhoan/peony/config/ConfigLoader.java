@@ -32,7 +32,8 @@ public final class ConfigLoader {
                 new ProxySettings(
                         trimToNull(properties.getProperty("proxy.url")),
                         trimToNull(properties.getProperty("proxy.prefix"))
-                )
+                ),
+                trimToNull(properties.getProperty("jvm.args"))
         );
     }
 

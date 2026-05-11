@@ -9,9 +9,10 @@ public record AppConfig(
         Path workspaceParent,
         String githubToken,
         String githubTokenEnv,
-        ProxySettings proxySettings
+        ProxySettings proxySettings,
+        String jvmArgs
 ) {
     public static AppConfig empty() {
-        return new AppConfig(null, null, null, null, ProxySettings.empty());
+        return new AppConfig(null, null, null, null, ProxySettings.empty(), null);
     }
 }

@@ -5,12 +5,13 @@ import cn.suhoan.peony.net.ProxySettings;
 import java.nio.file.Path;
 import java.util.List;
 
-public record RunRequest(
+public record PeonyRequest(
         boolean showHelp,
-        boolean downloadOnly,
+        Command command,
         boolean stableOnly,
         String sourceType,
         String repository,
+        String releaseTag,
         String assetName,
         Path configPath,
         Path javaHomeOverride,
@@ -19,9 +20,10 @@ public record RunRequest(
         ProxySettings proxyOverride,
         String githubToken,
         String githubTokenEnv,
+        String jvmArgsOverride,
         List<String> programArgs
 ) {
-    public static RunRequest helpRequest() {
-        return new RunRequest(true, false, false, null, null, null, null, null, null, false, ProxySettings.empty(), null, null, List.of());
+    public static PeonyRequest helpRequest() {
+        return new PeonyRequest(true, null, false, null, null, null, null, null, null, null, false, ProxySettings.empty(), null, null, null, List.of());
     }
 }

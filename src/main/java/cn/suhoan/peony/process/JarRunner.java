@@ -10,10 +10,11 @@ public final class JarRunner {
     private JarRunner() {
     }
 
-    public static int run(Path javaHome, Path workingDirectory, Path jarPath, List<String> programArgs) throws IOException, InterruptedException {
+    public static int run(Path javaHome, Path workingDirectory, Path jarPath, List<String> jvmArgs, List<String> programArgs) throws IOException, InterruptedException {
         Path javaExecutable = resolveJavaExecutable(javaHome);
         List<String> command = new ArrayList<>();
         command.add(javaExecutable.toString());
+        command.addAll(jvmArgs);
         command.add("-jar");
         command.add(jarPath.toString());
         command.addAll(programArgs);

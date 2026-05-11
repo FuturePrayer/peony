@@ -1,4 +1,21 @@
-# peony
+<p align="center">
+  <img src="logo.png" alt="Peony" width="128" height="128">
+</p>
+
+<h1 align="center">Peony</h1>
+
+<p align="center">
+  <strong>面向 Java 生态的命令行启动器，提供接近 npx 的使用体验</strong>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
+  <a href="README_EN.md"><img src="https://img.shields.io/badge/English-README-lightgrey.svg" alt="English"></a>
+  <img src="https://img.shields.io/badge/JDK-21-green.svg" alt="JDK 21">
+  <img src="https://img.shields.io/badge/Maven-3.9+-green.svg" alt="Maven">
+</p>
+
+---
 
 `peony` 是一个面向 Java 生态的命令行启动器，目标是提供接近 `npx` 的使用体验：
 
@@ -29,11 +46,21 @@
 - 支持通过 CLI、配置文件、环境变量组合配置
 - 支持 native 可执行构建
 
-## 命令格式
+## 快速开始
+
+### 安装
+
+从 [GitHub Releases](https://github.com/suhoan/peony/releases) 下载对应平台的可执行文件，或下载跨平台 fat jar。
+
+### 命令格式
 
 ```bash
 peony run github <owner/repo> [options] -- [program args]
+peony pull github <owner/repo> [options]
 ```
+
+- `run`：下载并运行 jar
+- `pull`：仅下载 jar 并输出绝对路径，不运行，保留工作区
 
 示例：
 
@@ -50,11 +77,19 @@ peony run github owner/repo --proxy socks5://127.0.0.1:1080 --prefix-proxy https
 ```
 
 ```bash
-peony run github owner/repo --asset app.jar --download-only
+peony pull github owner/repo --asset app.jar
 ```
 
 ```bash
 peony run github owner/repo --stable-only --asset app.jar
+```
+
+```bash
+peony run github owner/repo --release-tag v1.0.0
+```
+
+```bash
+peony run github owner/repo --jvm-args "-Xmx512m -Dfoo=bar" -- --stdio
 ```
 
 ## CLI 选项
@@ -62,12 +97,13 @@ peony run github owner/repo --stable-only --asset app.jar
 | 选项 | 说明 |
 | --- | --- |
 | `--asset <name>` | 当最新 release 中存在多个 `.jar` 文件时，指定要下载的资产名 |
+| `--release-tag <tag>` | 指定要下载的 release tag（如 `v1.0.0`）；与 `--stable-only` 互斥，指定版本号时 pre-release 过滤不适用 |
 | `--config <path>` | 指定配置文件路径 |
-| `--java-home <path>` | 指定 JDK 路径 |
+| `--java-home <path>` | 指定 JDK 路径（`pull` 命令不需要） |
 | `--workspace <path>` | 指定工作区父目录；程序会在其下创建独立临时子目录 |
 | `--keep-workspace` | 运行结束后保留工作区 |
-| `--download-only` | 只下载不运行，并保留工作区；程序会输出下载后的 jar 绝对路径 |
 | `--stable-only` | 只查找稳定版 release，忽略 pre-release；默认会把 pre-release 也纳入查找范围 |
+| `--jvm-args <args>` | JVM 虚拟机参数（如 `"-Xmx512m -Dfoo=bar"`），仅 `run` 命令可用；命令行不支持引号内的空格，如需包含空格请使用环境变量或配置文件 |
 | `--proxy <url>` | 指定代理，支持 `http://`、`https://`、`socks5://` |
 | `--prefix-proxy <url>` | 指定前缀代理，最终访问 URL 为 `<prefix><real-url>` |
 | `--github-token <token>` | 直接指定 GitHub token |
@@ -90,7 +126,13 @@ peony run github owner/repo --stable-only --asset app.jar
 3. `PEONY_JAVA_HOME`
 4. `JAVA_HOME`
 
-如果都没有，则直接报错退出。
+如果都没有，`run` 命令会报错退出，`pull` 命令不需要 java home。
+
+`jvm.args` 按当前实现的查找顺序为：
+
+1. `--jvm-args`
+2. `PEONY_JVM_ARGS`
+3. 配置文件 `jvm.args`
 
 ## 配置文件
 
@@ -105,6 +147,7 @@ peony run github owner/repo --stable-only --asset app.jar
 
 ```properties
 java.home=D:/develop/jdk-21
+jvm.args=-Xmx512m -Dpath="C:\\Program Files\\Java"
 workspace.parent=D:/temp/peony
 github.token.env=PEONY_GITHUB_TOKEN
 proxy.url=socks5://127.0.0.1:1080
@@ -116,6 +159,7 @@ proxy.prefix=https://gp-proxy.com/
 | Key | 说明 |
 | --- | --- |
 | `java.home` | JDK 根目录 |
+| `jvm.args` | JVM 虚拟机参数，支持引号内的空格 |
 | `workspace.parent` | 工作区父目录 |
 | `github.token` | GitHub token |
 | `github.token.env` | GitHub token 对应环境变量名 |
@@ -128,6 +172,7 @@ proxy.prefix=https://gp-proxy.com/
 | --- | --- |
 | `PEONY_JAVA_HOME` | JDK 根目录 |
 | `JAVA_HOME` | JDK 根目录回退 |
+| `PEONY_JVM_ARGS` | JVM 虚拟机参数，支持引号内的空格 |
 | `PEONY_GITHUB_TOKEN` | 默认 GitHub token |
 | `GITHUB_TOKEN` | 默认 GitHub token 回退 |
 | `PEONY_PROXY` | 默认代理 |
@@ -142,8 +187,8 @@ proxy.prefix=https://gp-proxy.com/
 - `--workspace` 指的是工作区父目录，不是最终工作目录
 - 每次运行会创建一个独立临时子目录，例如 `peony-xxxxx`
 - 下载的 `.jar` 文件会落在这个临时子目录里
-- 默认退出后会删除整个临时子目录
-- 指定 `--download-only` 时只下载不运行，且不会删除工作区
+- `run` 命令默认退出后会删除整个临时子目录
+- `pull` 命令默认保留工作区
 - 指定 `--keep-workspace` 后保留该目录以便排查问题
 
 ## 代理说明
@@ -310,3 +355,11 @@ git push origin 1.1.0-SNAPSHOT
 - 增加 Maven 仓库来源
 - 增加缓存与校验策略
 - 增加更多端到端集成测试
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 许可证
+
+本项目基于 [Apache License 2.0](LICENSE) 开源。

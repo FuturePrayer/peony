@@ -55,6 +55,7 @@ public final class GitHubReleaseParser {
     }
 
     private static GitHubRelease parseRelease(JsonParser parser) throws IOException {
+        String tagName = null;
         Boolean prerelease = null;
         List<GitHubReleaseAsset> assets = List.of();
 
@@ -66,6 +67,7 @@ public final class GitHubReleaseParser {
             String fieldName = parser.currentName();
             parser.nextToken();
             switch (fieldName) {
+                case "tag_name" -> tagName = parser.getValueAsString();
                 case "prerelease" -> prerelease = parser.getBooleanValue();
                 case "assets" -> {
                     if (parser.currentToken() != JsonToken.START_ARRAY) {
@@ -81,7 +83,7 @@ public final class GitHubReleaseParser {
             }
         }
 
-        return new GitHubRelease(Boolean.TRUE.equals(prerelease), assets);
+        return new GitHubRelease(tagName, Boolean.TRUE.equals(prerelease), assets);
     }
 
     private static GitHubReleaseAsset parseAsset(JsonParser parser) throws IOException {

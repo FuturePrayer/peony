@@ -13,6 +13,7 @@ class GitHubReleaseParserTest {
         String json = """
                 [
                   {
+                    "tag_name": "v2.0.0-beta",
                     "prerelease": true,
                     "assets": [
                       {
@@ -22,6 +23,7 @@ class GitHubReleaseParserTest {
                     ]
                   },
                   {
+                    "tag_name": "v1.0.0",
                     "prerelease": false,
                     "assets": [
                       {
@@ -36,7 +38,9 @@ class GitHubReleaseParserTest {
         List<GitHubRelease> releases = GitHubReleaseParser.parseReleases(json);
 
         assertEquals(2, releases.size());
+        assertEquals("v2.0.0-beta", releases.getFirst().tagName());
         assertEquals(true, releases.getFirst().prerelease());
+        assertEquals("v1.0.0", releases.get(1).tagName());
         assertEquals("tool-beta.jar", releases.getFirst().assets().getFirst().name());
     }
 
@@ -77,11 +81,44 @@ class GitHubReleaseParserTest {
     @Test
     void prefersPrereleaseByDefaultButCanFilterStableOnly() {
         List<GitHubRelease> releases = List.of(
-                new GitHubRelease(true, List.of(new GitHubReleaseAsset("beta.jar", "https://api.github.com/assets/beta", null))),
-                new GitHubRelease(false, List.of(new GitHubReleaseAsset("stable.jar", "https://api.github.com/assets/stable", null)))
+                new GitHubRelease("v2.0.0-beta", true, List.of(new GitHubReleaseAsset("beta.jar", "https://api.github.com/assets/beta", null))),
+                new GitHubRelease("v1.0.0", false, List.of(new GitHubReleaseAsset("stable.jar", "https://api.github.com/assets/stable", null)))
         );
 
-        assertEquals("beta.jar", GitHubSource.selectRelease(releases, false).assets().getFirst().name());
-        assertEquals("stable.jar", GitHubSource.selectRelease(releases, true).assets().getFirst().name());
+        assertEquals("beta.jar", GitHubSource.selectRelease(releases, false, null).assets().getFirst().name());
+        assertEquals("stable.jar", GitHubSource.selectRelease(releases, true, null).assets().getFirst().name());
+    }
+
+    @Test
+    void selectsReleaseByTag() {
+        List<GitHubRelease> releases = List.of(
+                new GitHubRelease("v2.0.0-beta", true, List.of(new GitHubReleaseAsset("beta.jar", "https://api.github.com/assets/beta", null))),
+                new GitHubRelease("v1.0.0", false, List.of(new GitHubReleaseAsset("stable.jar", "https://api.github.com/assets/stable", null)))
+        );
+
+        assertEquals("stable.jar", GitHubSource.selectRelease(releases, false, "v1.0.0").assets().getFirst().name());
+        assertEquals("beta.jar", GitHubSource.selectRelease(releases, false, "v2.0.0-beta").assets().getFirst().name());
+    }
+
+    @Test
+    void throwsWhenReleaseTagNotFound() {
+        List<GitHubRelease> releases = List.of(
+                new GitHubRelease("v1.0.0", false, List.of(new GitHubReleaseAsset("stable.jar", "https://api.github.com/assets/stable", null)))
+        );
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> GitHubSource.selectRelease(releases, false, "v9.9.9"));
+        assertEquals("release not found with tag: v9.9.9", exception.getMessage());
+    }
+
+    @Test
+    void throwsWhenReleaseTagHasNoJarAssets() {
+        List<GitHubRelease> releases = List.of(
+                new GitHubRelease("v1.0.0", false, List.of(new GitHubReleaseAsset("readme.txt", "https://api.github.com/assets/readme", null)))
+        );
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> GitHubSource.selectRelease(releases, false, "v1.0.0"));
+        assertEquals("release not found with tag: v1.0.0", exception.getMessage());
     }
 }

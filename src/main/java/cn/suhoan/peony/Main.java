@@ -1,7 +1,8 @@
 package cn.suhoan.peony;
 
 import cn.suhoan.peony.cli.CliParser;
-import cn.suhoan.peony.cli.RunRequest;
+import cn.suhoan.peony.cli.Command;
+import cn.suhoan.peony.cli.PeonyRequest;
 import cn.suhoan.peony.config.AppConfig;
 import cn.suhoan.peony.config.ConfigLoader;
 import cn.suhoan.peony.config.ExecutionSettings;
@@ -24,7 +25,7 @@ public final class Main {
 
     static int run(String[] args) {
         try {
-            RunRequest request = CliParser.parse(args);
+            PeonyRequest request = CliParser.parse(args);
             if (request.showHelp()) {
                 System.out.println(CliParser.usage());
                 return 0;
@@ -33,17 +34,17 @@ public final class Main {
             Path workingDirectory = Path.of("").toAbsolutePath().normalize();
             AppConfig appConfig = ConfigLoader.load(request.configPath(), workingDirectory);
             ExecutionSettings settings = SettingsResolver.resolve(request, appConfig);
-            boolean deleteWorkspaceOnClose = !request.keepWorkspace() && !request.downloadOnly();
+            boolean deleteWorkspaceOnClose = request.command() == Command.RUN && !request.keepWorkspace();
 
             try (WorkspaceSession workspace = WorkspaceSession.create(settings.workspaceParent(), deleteWorkspaceOnClose);
                  HttpExecutor httpExecutor = new HttpExecutor(settings.proxySettings())) {
                 ResolvedArtifact artifact = ArtifactSourceRegistry.resolve(request, settings, httpExecutor);
                 Path jarPath = artifact.downloadTo(workspace.directory(), httpExecutor);
-                if (request.downloadOnly()) {
+                if (request.command() == Command.PULL) {
                     System.out.println(jarPath.toAbsolutePath().normalize());
                     return 0;
                 }
-                return JarRunner.run(settings.javaHome(), workspace.directory(), jarPath, request.programArgs());
+                return JarRunner.run(settings.javaHome(), workspace.directory(), jarPath, settings.jvmArgs(), request.programArgs());
             }
         } catch (IllegalArgumentException e) {
             System.err.println("Error: " + e.getMessage());
